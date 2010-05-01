@@ -25,6 +25,8 @@ def raises(exc, func, *args, **kwds):
 
 test_macros = parse_macros('''
 
+import os
+
 def not_a_macro():
     pass
 
@@ -56,6 +58,14 @@ def expand_in(code):
     ns = {}
     exec code in ns
     return ns
+
+def test_macro_decorator():
+    @macro
+    def test():
+        pass
+    # test that a function marked as "macro" can't be called as an
+    # ordinary function
+    assert raises(RuntimeError, test)
 
 def test_parse():
     # only functions decorated with @macro are macros
@@ -115,11 +125,3 @@ def test_recursive_expansion():
         k = add(5, 5, 5)
     '''))
     assert ns['k'] == 15
-
-def test_macro_decorator():
-    @macro
-    def test():
-        pass
-    # test that a function marked as "macro" can't be called as an
-    # ordinary function
-    assert raises(RuntimeError, test)
