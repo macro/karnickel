@@ -13,7 +13,7 @@ rabbit in "Monty Python and the Holy Grail" that is best left alone...)
 Using
 =====
 
-You can put macros in any module.  Write them like this::
+Use Python 2.6+.  You can put macros in any module.  Write them like this::
 
    from karnickel import macro
 
