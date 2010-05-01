@@ -6,6 +6,16 @@ README for Karnickel - AST Macros for Python
 
 "it's no ordinary rabbit..."
 
+
+What is it?
+===========
+
+Karnickel is a small library that allows you to use macros (similar to those
+found in Lisp) in Python code.  In a nutshell, macros allow you to insert code
+(the macro *definition*) at a different point in the code (the macro *call*).
+It is different from calling functions in that the code is inserted *before* it
+is even compiled.
+
 ("Karnickel" is German for "rabbit", and there's a vicious killer
 rabbit in "Monty Python and the Holy Grail" that is best left alone...)
 
@@ -13,13 +23,16 @@ rabbit in "Monty Python and the Holy Grail" that is best left alone...)
 Using
 =====
 
-Use Python 2.6+.  You can put macros in any module.  Write them like this::
+Use Python 2.6+.  You can put macros in any module.  Macro definitions are
+Python functions, like this::
 
    from karnickel import macro
 
    @macro
    def macroname(arg1, arg2):
         ... macro contents ...
+
+Optional arguments are not supported.
 
 If the contents are a single expression (no ``return``), the macro is an
 *expression macro*.  Otherwise, it is a *block macro*.  If it contains a
