@@ -115,3 +115,11 @@ def test_recursive_expansion():
         k = add(5, 5, 5)
     '''))
     assert ns['k'] == 15
+
+def test_macro_decorator():
+    @macro
+    def test():
+        pass
+    # test that a function marked as "macro" can't be called as an
+    # ordinary function
+    assert raises(RuntimeError, test)

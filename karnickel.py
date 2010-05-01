@@ -22,7 +22,7 @@ def macro(func):
     """Decorator to mark macros."""
     def new_func(*args, **kwds):
         raise RuntimeError('%s.%s() is a macro; you should not call it '
-                           ' directly.' % (func.__module__ + func.__name__))
+                           ' directly.' % (func.__module__, func.__name__))
     return new_func
 
 
