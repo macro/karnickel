@@ -23,13 +23,17 @@ def macro(func):
     def new_func(*args, **kwds):
         raise RuntimeError('%s.%s() is a macro; you should not call it '
                            ' directly.' % (func.__module__ + func.__name__))
+    return new_func
 
 
 class MacroDefError(Exception):
-    pass
+    """Raised when an invalid macro definition is encountered."""
 
 
 def parse_macros(code):
+    """Find and parse all macros in *code*.  Return a dictionary mapping macro
+    names to MacroDefs.
+    """
     code = ast.parse(code)
     macros = {}
     for item in code.body:
@@ -52,6 +56,9 @@ def parse_macros(code):
 
 
 def import_macros(module, names, dict):
+    """Import macros given in *names* from *module*, from a module with the
+    given globals *dict*.
+    """
     try:
         mod = __import__(module, dict, None, ['*'])
     except Exception, err:
@@ -76,6 +83,8 @@ def import_macros(module, names, dict):
 
 
 class MacroCallError(Exception):
+    """Raised when an invalid macro call is encountered."""
+
     def __init__(self, node, message):
         Exception.__init__(self, '%s: %s' % (node.lineno, message))
 
@@ -84,6 +93,13 @@ class MacroCallError(Exception):
 
 
 class ContextChanger(ast.NodeVisitor):
+    """
+    AST visitor that updates the "context" on nodes that can occur on the LHS or
+    RHS in an assignment.  This is needed because on a macro call, arguments
+    always have Load context, while in the expansion, they can also have Store
+    or other contexts.
+    """
+
     def __init__(self, context):
         self.context = context
 
@@ -95,6 +111,11 @@ class ContextChanger(ast.NodeVisitor):
 
 
 class CallTransformer(ast.NodeTransformer):
+    """
+    AST visitor that expands uses of macro arguments and __body__ inside a macro
+    definition.
+    """
+
     def __init__(self, args, body=None):
         self.args = args
         self.body = body
@@ -119,6 +140,11 @@ class CallTransformer(ast.NodeTransformer):
 
 
 class BodyVisitor(ast.NodeVisitor):
+    """
+    AST visitor that checks for use of __body__, to determine if a block macro
+    has a body.
+    """
+
     def __init__(self):
         self.found_body = False
 
@@ -127,11 +153,11 @@ class BodyVisitor(ast.NodeVisitor):
             self.found_body = True
 
 
-class MacroDef(object):
-    pass
+class ExprMacroDef(object):
+    """
+    Definition of an expression macro.
+    """
 
-
-class ExprMacroDef(MacroDef):
     def __init__(self, args, expr):
         self.args = args
         self.expr = expr
@@ -146,7 +172,11 @@ class ExprMacroDef(MacroDef):
         return CallTransformer(argdict).visit(expr)
 
 
-class BlockMacroDef(MacroDef):
+class BlockMacroDef(object):
+    """
+    Definition of a block macro, with or without body.
+    """
+
     def __init__(self, args, stmts):
         self.args = args
         self.stmts = stmts
@@ -164,6 +194,10 @@ class BlockMacroDef(MacroDef):
 
 
 class Expander(ast.NodeTransformer):
+    """
+    AST visitor that expands macros.
+    """
+
     def __init__(self, module, macro_definitions=None):
         self.module = module
         self.defs = macro_definitions or {}
@@ -222,6 +256,11 @@ class Expander(ast.NodeTransformer):
 
 
 class MacroImporter(object):
+    """
+    Import hook for use on `sys.meta_path`, to expand macros on import.  Quite a
+    pain without having importlib.
+    """
+
     def __init__(self):
         self._cache = {}
 
@@ -277,6 +316,7 @@ class MacroImporter(object):
 
 
 def install_hook():
+    """Install the import hook that allows to import modules using macros."""
     sys.meta_path.insert(0, MacroImporter())
 
 
