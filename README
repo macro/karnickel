@@ -1,0 +1,24 @@
+.. -*- restructuredtext -*-
+
+====================
+README for Karnickel
+====================
+
+Installing
+==========
+
+Use ``setup.py``::
+
+   sudo python setup.py install
+
+
+Using
+=====
+
+See ``example/macros.py`` and ``example/test.py``.
+
+
+Author
+======
+
+Georg Brandl <georg@python.org>.
