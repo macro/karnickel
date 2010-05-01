@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 from distutils.core import setup
 
-long_desc = '''
-Python macros implemented using the Python AST.
-'''
+long_desc = open('README').read()
 
 setup(
     name='karnickel',
