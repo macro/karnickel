@@ -204,10 +204,11 @@ class Expander(ast.NodeTransformer):
 
     def visit_ImportFrom(self, node):
         if node.module and node.module.endswith('.__macros__'):
-            module = node.module[:-11]
+            modname = node.module[:-11]
             names = dict((alias.name, alias.asname or alias.name)
                          for alias in node.names)
-            self.defs.update(import_macros(module, names, self.module.__dict__))
+            self.defs.update(import_macros(
+                modname, names, self.module and self.module.__dict__))
             return None
         return node
 
@@ -311,15 +312,17 @@ class MacroImporter(object):
             exec code in module.__dict__
             return module
         except Exception, err:
-            raise
             raise ImportError('cannot import %s: %s' % (name, err))
 
 
 def install_hook():
     """Install the import hook that allows to import modules using macros."""
-    sys.meta_path.insert(0, MacroImporter())
+    importer = MacroImporter()
+    sys.meta_path.insert(0, importer)
+    return importer
 
 
-if __name__ == '__main__':
-    install_hook()
-    import example.test
+def remove_hook():
+    """Remove any MacroImporter from `sys.meta_path`."""
+    sys.meta_path[:] = [importer for importer in sys.meta_path if
+                        not isinstance(importer, MacroImporter)]

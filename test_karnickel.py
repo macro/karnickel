@@ -10,12 +10,14 @@
 """
 
 import ast
+import sys
 from textwrap import dedent
 
 from karnickel import *
 
 
 def raises(exc, func, *args, **kwds):
+    """Utility: Make sure the given exception is raised."""
     try:
         func(*args, **kwds)
     except exc:
@@ -23,9 +25,17 @@ def raises(exc, func, *args, **kwds):
     else:
         raise AssertionError('%s did not raise %s' % (func, exc))
 
-test_macros = parse_macros('''
 
-import os
+@macro
+def foo(x, y):
+    x = 2*y
+
+@macro
+def bar():
+    pass
+
+test_macros = parse_macros('''
+import os  # unrelated
 
 def not_a_macro():
     pass
@@ -47,8 +57,8 @@ def do_while(cond):
     while True:
         __body__
         if not cond: break
-
 ''')
+
 
 def expand_in(code):
     ex = Expander(None, test_macros)
@@ -58,6 +68,7 @@ def expand_in(code):
     ns = {}
     exec code in ns
     return ns
+
 
 def test_macro_decorator():
     @macro
@@ -83,10 +94,21 @@ def test_parse():
     def foo(x, y=1): pass
     '''))
 
+def test_import_from():
+    ns = expand_in(dedent('''
+    from test_karnickel.__macros__ import foo
+    foo(a, 21)
+    '''))
+    assert ns['a'] == 42
+
 def test_expr_macro():
     # expr macros can be used in expressions or as expr statements
     assert expand_in('k = add(1, 2, 3)')['k'] == 6
     assert expand_in('class X: pass\no = X(); set_x(o)')['o'].x == 1
+    # only calls are expanded
+    assert expand_in('add = 1; add')['add'] == 1
+    # invalid # of arguments
+    assert raises(MacroCallError, expand_in, 'add(1)')
 
 def test_block_macro():
     # in particular, this tests context reassignment
@@ -100,6 +122,8 @@ def test_block_macro():
     assert raises(MacroCallError, expand_in, 'k = assign(j, 1)')
     # block macros without __body__ cannot be used in with blocks
     assert raises(MacroCallError, expand_in, 'with assign(j, 1): pass')
+    # invalid # of arguments
+    assert raises(MacroCallError, expand_in, 'assign(i)')
 
 def test_body_macro():
     ns = expand_in(dedent('''
@@ -112,6 +136,8 @@ def test_body_macro():
     # as expr statements
     assert raises(MacroCallError, expand_in, 'k = do_while(1)')
     assert raises(MacroCallError, expand_in, 'do_while(1)')
+    # test that unrelated with statements are left alone
+    assert raises(NameError, expand_in, 'with a: pass')
 
 def test_recursive_expansion():
     # test that arguments are expanded before being inserted
@@ -125,3 +151,36 @@ def test_recursive_expansion():
         k = add(5, 5, 5)
     '''))
     assert ns['k'] == 15
+
+def test_import_macros():
+    # test import_macros function
+    macros = import_macros('test_karnickel', {'foo': 'fuu', 'bar': 'bar'}, {})
+    assert 'fuu' in macros
+    assert 'bar' in macros
+
+    macros = import_macros('test_karnickel', {'*': '*'}, {})
+    assert 'foo' in macros
+    assert 'bar' in macros
+
+    assert raises(MacroDefError, import_macros, 'some_module', {}, {})
+    assert raises(MacroDefError, import_macros, 'test_karnickel', {'x': ''}, {})
+
+def test_import_hook():
+    importer = install_hook()
+    import example.test
+    assert example.test.usage_expr() == 22
+    try:
+        import example.fail
+    except ImportError, err:
+        assert '__body__' in str(err)
+    else:
+        assert False, 'ImportError not raised'
+    # test import of builtin module, should still work normally
+    import xxsubtype
+    assert xxsubtype.spamdict
+    # test import of C module
+    import _testcapi
+    assert _testcapi.error
+    remove_hook()
+    # test calling load_module without find_module
+    assert raises(ImportError, importer.load_module, 'foo')
