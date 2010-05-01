@@ -41,6 +41,8 @@ def parse_macros(code):
             continue
         name = item.name
         args = [arg.id for arg in item.args.args]
+        if item.args.vararg or item.args.kwarg or item.args.defaults:
+            raise MacroDefError('macro %s has an unsupported signature' % name)
         if len(item.body) == 1 and isinstance(item.body[0], ast.Expr):
             macro = ExprMacroDef(args, item.body[0].value)
         else:
@@ -87,6 +89,7 @@ class ContextChanger(ast.NodeVisitor):
 
     def visit_Name(self, node):
         node.ctx = self.context
+        self.generic_visit(node)  # visit children
 
     visit_Attribute = visit_Subscript = visit_List = visit_Tuple = visit_Name
 
@@ -107,13 +110,12 @@ class CallTransformer(ast.NodeTransformer):
         return node
 
     def visit_Expr(self, node):
-        if not self.body:
-            return node
-        if isinstance(node.value, ast.Name) and node.value.id == '__body__':
+        node = self.generic_visit(node)
+        if self.body and isinstance(node.value, ast.Name) and \
+           node.value.id == '__body__':
             new_node = ast.fix_missing_locations(ast.If(ast.Num(1),
                                                         self.body, []))
             return new_node
-        return node
 
 
 class BodyVisitor(ast.NodeVisitor):
@@ -176,6 +178,7 @@ class Expander(ast.NodeTransformer):
         return node
 
     def visit_With(self, node):
+        expanded_body = map(self.visit, node.body)
         expr = node.context_expr
         if isinstance(expr, ast.Call) and \
            isinstance(expr.func, ast.Name) and expr.func.id in self.defs:
@@ -188,7 +191,7 @@ class Expander(ast.NodeTransformer):
                 raise MacroCallError(node, 'macro is not a block macro')
             if not macro_def.has_body:
                 raise MacroCallError(node, 'macro has no __body__ substitution')
-            return macro_def.expand(node, expr.args, node.body)
+            return macro_def.expand(node, expr.args, expanded_body)
         return node
 
     def _handle_call(self, node, macrotype):
@@ -196,16 +199,20 @@ class Expander(ast.NodeTransformer):
             raise MacroCallError(node, 'macro call with kwargs or star syntax')
         macro_def = self.defs[node.func.id]
         if not isinstance(macro_def, macrotype):
-            raise MacroCallError(node, 'macro is not a %s' % macrotype.__name__)
+            raise MacroCallError(node, 'macro is not a %s' % macrotype)
         if macro_def.has_body:
             raise MacroCallError(node, 'macro has a __body__ substitution')
-        return macro_def.expand(node, node.args)
+        expanded_args = map(self.visit, node.args)
+        return macro_def.expand(node, expanded_args)
 
     def visit_Expr(self, node):
         value = node.value
         if isinstance(value, ast.Call) and \
            isinstance(value.func, ast.Name) and value.func.id in self.defs:
-            return self._handle_call(value, BlockMacroDef)
+            ret = self._handle_call(value, (ExprMacroDef, BlockMacroDef))
+            if isinstance(ret, ast.expr):
+                ret = ast.fix_missing_locations(ast.Expr(ret))
+            return ret
         return node
 
     def visit_Call(self, node):
